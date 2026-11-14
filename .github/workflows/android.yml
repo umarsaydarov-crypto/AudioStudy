@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'AudioStudy-source-v0.1.0.zip'
+      - 'AudioStudy-source-v0.1.0-fixed.zip'
       - '.github/workflows/android.yml'
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Extract AudioStudy
-        run: unzip AudioStudy-source-v0.1.0.zip
+        run: unzip AudioStudy-source-v0.1.0-fixed.zip
 
       - name: Build APK
         working-directory: AudioStudy
