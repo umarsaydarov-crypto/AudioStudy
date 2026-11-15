@@ -6,6 +6,7 @@ on:
     paths:
       - 'AudioStudy-source-v0.2.0.zip'
       - 'patches/audiostudy-v0.3.0.patch'
+      - 'patches/audiostudy-v0.4.0.patch'
       - '.github/workflows/android.yml'
 
 jobs:
@@ -39,22 +40,23 @@ jobs:
         run: |
           unzip AudioStudy-source-v0.2.0.zip
           patch --batch --forward --fuzz=3 -p1 < patches/audiostudy-v0.3.0.patch
+          patch --batch --forward --fuzz=3 -p1 < patches/audiostudy-v0.4.0.patch
 
       - name: Build APK
         working-directory: AudioStudy
         run: gradle assembleDebug
 
       - name: Package updated source
-        run: zip -qr AudioStudy-source-v0.3.0.zip AudioStudy
+        run: zip -qr AudioStudy-source-v0.4.0.zip AudioStudy
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AudioStudy-0.3.0-APK
+          name: AudioStudy-0.4.0-APK
           path: AudioStudy/app/build/outputs/apk/debug/*.apk
 
       - name: Upload source archive
         uses: actions/upload-artifact@v4
         with:
-          name: AudioStudy-0.3.0-Source
+          name: AudioStudy-0.4.0-Source
           path: AudioStudy-source-v0.3.0.zip
