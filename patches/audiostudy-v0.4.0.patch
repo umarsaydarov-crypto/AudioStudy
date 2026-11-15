@@ -1,3 +1,18 @@
+diff -ruN audiostudy_v03/AudioStudy/app/build.gradle.kts audiostudy_next/AudioStudy/app/build.gradle.kts
+--- a/AudioStudy/app/build.gradle.kts
++++ b/AudioStudy/app/build.gradle.kts
+@@ -12,8 +12,8 @@
+         applicationId = "com.audiostudy.app"
+         minSdk = 29
+         targetSdk = 35
+-        versionCode = 3
+-        versionName = "0.3.0"
++        versionCode = 4
++        versionName = "0.4.0"
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+         vectorDrawables.useSupportLibrary = true
+diff -ruN audiostudy_v03/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt audiostudy_next/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
 --- a/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
 +++ b/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
 @@ -19,6 +19,8 @@
@@ -18,6 +33,7 @@
  import androidx.compose.material3.OutlinedTextField
  import androidx.compose.material3.Surface
 @@ -92,6 +95,10 @@
+     var deleteTarget by remember { mutableStateOf<File?>(null) }
      var message by remember { mutableStateOf<String?>(null) }
      var noiseSuppression by remember { mutableStateOf(false) }
 +    var recordingMode by remember { mutableStateOf("Лекции") }
@@ -26,7 +42,8 @@
 +    var newestFirst by remember { mutableStateOf(true) }
      var playbackBoost by remember { mutableStateOf(1f) }
      var loudnessEnhancer by remember { mutableStateOf<LoudnessEnhancer?>(null) }
-@@ -129,7 +136,7 @@
+ 
+@@ -123,7 +130,7 @@
  
      fun beginRecording() {
          try {
@@ -35,7 +52,8 @@
              val newRecorder = MediaRecorder()
              // VOICE_RECOGNITION often routes through the device voice-processing path.
              newRecorder.setAudioSource(if (noiseSuppression) MediaRecorder.AudioSource.VOICE_RECOGNITION else MediaRecorder.AudioSource.MIC)
-@@ -181,13 +188,30 @@
+@@ -182,11 +189,28 @@
+         }
      }
  
 +    val visibleRecords = records.filter { item ->
@@ -63,14 +81,13 @@
 +        } else {
 +            Text("Режим: $recordingMode", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
 +        }
-@@ -280,13 +304,31 @@
--        Row(verticalAlignment = Alignment.CenterVertically) {
--            Text("Мои записи", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
--            Spacer(Modifier.weight(1f))
--            Text("${records.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
--        }
--
--        if (records.isEmpty()) {
+         Card(
+             modifier = Modifier.fillMaxWidth(),
+             shape = RoundedCornerShape(22.dp),
+@@ -279,13 +303,30 @@
+             Text("Усиление применяется к следующим запускам воспроизведения. На максимуме возможны искажения.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+         }
+ 
 +        Text("Библиотека записей", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 +        OutlinedTextField(
 +            value = recordSearch,
@@ -88,36 +105,64 @@
 +            }
 +            TextButton(onClick = { newestFirst = !newestFirst }) { Text(if (newestFirst) "Новые" else "Старые") }
 +        }
-+        Row(verticalAlignment = Alignment.CenterVertically) {
+         Row(verticalAlignment = Alignment.CenterVertically) {
+-            Text("Мои записи", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
 +            Text("${visibleRecords.size} записей", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-+            Spacer(Modifier.weight(1f))
+             Spacer(Modifier.weight(1f))
+-            Text("${records.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
 +            Text("M4A", color = MaterialTheme.colorScheme.onSurfaceVariant)
-+        }
-+
+         }
+ 
+-        if (records.isEmpty()) {
 +        if (visibleRecords.isEmpty()) {
-@@ -297,7 +339,7 @@
+             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                     Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
+@@ -295,7 +336,7 @@
+             }
+         } else {
+             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
 -                items(records, key = { it.file.absolutePath }) { item ->
 +                items(visibleRecords, key = { it.file.absolutePath }) { item ->
-@@ -421,12 +463,17 @@
+                     RecordingRow(
+                         item = item,
+                         isPlaying = playingPath == item.file.absolutePath,
+@@ -417,12 +458,17 @@
+                 }
+             }
+             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
 -                Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
 +                Text(item.title.substringAfter('_', item.title), fontWeight = FontWeight.SemiBold, maxLines = 1)
                  Text(
 -                    "${formatDuration(item.durationMs)} • ${SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(item.file.lastModified()))}",
 +                    "${formatDuration(item.durationMs)} • ${String.format(Locale.getDefault(), "%.1f МБ", item.file.length() / 1048576.0)} • M4A",
-+                    style = MaterialTheme.typography.bodySmall,
-+                    color = MaterialTheme.colorScheme.onSurfaceVariant
-+                )
-+                Text(
-+                    SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(item.file.lastModified())),
                      style = MaterialTheme.typography.bodySmall,
                      color = MaterialTheme.colorScheme.onSurfaceVariant
                  )
++                Text(
++                    SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(item.file.lastModified())),
++                    style = MaterialTheme.typography.labelSmall,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant
++                )
+             }
+             IconButton(onClick = onRename) { Icon(Icons.Default.Edit, contentDescription = "Переименовать") }
+             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Удалить") }
+diff -ruN audiostudy_v03/AudioStudy/app/src/main/java/com/audiostudy/app/ui/theme/AudioStudyTheme.kt audiostudy_next/AudioStudy/app/src/main/java/com/audiostudy/app/ui/theme/AudioStudyTheme.kt
 --- a/AudioStudy/app/src/main/java/com/audiostudy/app/ui/theme/AudioStudyTheme.kt
 +++ b/AudioStudy/app/src/main/java/com/audiostudy/app/ui/theme/AudioStudyTheme.kt
-@@ -8,7 +8,7 @@
+@@ -7,7 +7,7 @@
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.graphics.Color
+ 
 -private val Blue = Color(0xFF4779D0)
 +private val Blue = Color(0xFFFF4B1F)
-@@ -24,10 +24,10 @@
+ private val LightScheme = lightColorScheme(
+     primary = Blue,
+     onPrimary = Color.White,
+@@ -20,10 +20,10 @@
+ )
+ 
+ private val DarkScheme = darkColorScheme(
 -    primary = Color(0xFF9DBBFF),
 -    background = Color(0xFF111318),
 -    surface = Color(0xFF191C23),
@@ -126,10 +171,6 @@
 +    background = Color(0xFF101012),
 +    surface = Color(0xFF202126),
 +    surfaceVariant = Color(0xFF292A30),
---- a/AudioStudy/app/build.gradle.kts
-+++ b/AudioStudy/app/build.gradle.kts
-@@ -13,8 +13,8 @@
--        versionCode = 3
--        versionName = "0.3.0"
-+        versionCode = 4
-+        versionName = "0.4.0"
+     onBackground = Color(0xFFE9ECF3),
+     onSurface = Color(0xFFE9ECF3),
+     onSurfaceVariant = Color(0xFFB4BAC7)
