@@ -1,12 +1,11 @@
-
 name: Build AudioStudy APK
-# GitHub connector write-access verification
 
 on:
   workflow_dispatch:
   push:
     paths:
       - 'AudioStudy-source-v0.2.0.zip'
+      - 'patches/audiostudy-v0.3.0.patch'
       - '.github/workflows/android.yml'
 
 jobs:
@@ -36,16 +35,26 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Extract AudioStudy
-        run: unzip AudioStudy-source-v0.2.0.zip
+      - name: Extract and patch AudioStudy
+        run: |
+          unzip AudioStudy-source-v0.2.0.zip
+          patch -p1 < patches/audiostudy-v0.3.0.patch
 
       - name: Build APK
         working-directory: AudioStudy
         run: gradle assembleDebug
 
+      - name: Package updated source
+        run: zip -qr AudioStudy-source-v0.3.0.zip AudioStudy
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AudioStudy-APK
+          name: AudioStudy-0.3.0-APK
           path: AudioStudy/app/build/outputs/apk/debug/*.apk
-          
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioStudy-0.3.0-Source
+          path: AudioStudy-source-v0.3.0.zip
