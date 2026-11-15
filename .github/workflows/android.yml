@@ -1,5 +1,6 @@
 
 name: Build AudioStudy APK
+# GitHub connector write-access verification
 
 on:
   workflow_dispatch:
