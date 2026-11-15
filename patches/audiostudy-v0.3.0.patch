@@ -1,0 +1,163 @@
+--- a/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
++++ b/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
+@@ -5,6 +5,8 @@
+ import android.media.MediaMetadataRetriever
+ import android.media.MediaPlayer
+ import android.media.MediaRecorder
++import android.media.audiofx.NoiseSuppressor
++import android.media.audiofx.LoudnessEnhancer
+ import android.os.SystemClock
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+@@ -40,6 +42,8 @@
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.OutlinedTextField
+ import androidx.compose.material3.Surface
++import androidx.compose.material3.Slider
++import androidx.compose.material3.Switch
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TextButton
+ import androidx.compose.runtime.Composable
+@@ -88,6 +92,10 @@
+     var renameText by remember { mutableStateOf("") }
+     var deleteTarget by remember { mutableStateOf<File?>(null) }
+     var message by remember { mutableStateOf<String?>(null) }
++    var noiseSuppression by remember { mutableStateOf(false) }
++    var playbackBoost by remember { mutableStateOf(1f) }
++    var noiseSuppressor by remember { mutableStateOf<NoiseSuppressor?>(null) }
++    var loudnessEnhancer by remember { mutableStateOf<LoudnessEnhancer?>(null) }
+ 
+     fun refreshRecords() {
+         records = recordingsDirectory.listFiles()
+@@ -106,6 +114,7 @@
+             currentFile?.delete()
+         } finally {
+             currentRecorder?.release()
++            noiseSuppressor?.release(); noiseSuppressor = null
+             recorder = null
+             activeFile = null
+             isRecording = false
+@@ -119,13 +128,26 @@
+         try {
+             val file = File(recordingsDirectory, "Запись_${timestampForFile()}.m4a")
+             val newRecorder = MediaRecorder()
+-            newRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
++            // VOICE_RECOGNITION often routes through the device voice-processing path.
++            newRecorder.setAudioSource(if (noiseSuppression) MediaRecorder.AudioSource.VOICE_RECOGNITION else MediaRecorder.AudioSource.MIC)
+             newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+             newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+             newRecorder.setAudioSamplingRate(44100)
+             newRecorder.setAudioEncodingBitRate(128000)
+             newRecorder.setOutputFile(file.absolutePath)
+             newRecorder.prepare()
++            if (noiseSuppression) {
++                if (NoiseSuppressor.isAvailable()) {
++                    runCatching {
++                        NoiseSuppressor.create(newRecorder.audioSessionId)?.also { effect ->
++                            effect.enabled = true
++                            noiseSuppressor = effect
++                        }
++                    }
++                } else {
++                    message = "На этом устройстве системное шумоподавление недоступно. Запись будет обычной."
++                }
++            }
+             newRecorder.start()
+             recorder = newRecorder
+             activeFile = file
+@@ -152,6 +174,8 @@
+     val latestRecorder by rememberUpdatedState(recorder)
+     val latestActiveFile by rememberUpdatedState(activeFile)
+     val latestPlayer by rememberUpdatedState(player)
++    val latestNoiseSuppressor by rememberUpdatedState(noiseSuppressor)
++    val latestLoudnessEnhancer by rememberUpdatedState(loudnessEnhancer)
+ 
+     LaunchedEffect(Unit) { refreshRecords() }
+     LaunchedEffect(isRecording, isPaused) {
+@@ -170,6 +194,8 @@
+                 }
+             } catch (_: Exception) { }
+             latestPlayer?.release()
++            latestNoiseSuppressor?.release()
++            latestLoudnessEnhancer?.release()
+         }
+     }
+ 
+@@ -209,6 +235,13 @@
+                 )
+                 Text(formatDuration(elapsedMs), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Medium)
+                 if (!isRecording) {
++                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
++                        Column(Modifier.weight(1f)) {
++                            Text("Шумоподавление", fontWeight = FontWeight.Medium)
++                            Text("Если поддерживается телефоном", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
++                        }
++                        Switch(checked = noiseSuppression, onCheckedChange = { noiseSuppression = it })
++                    }
+                     Button(
+                         onClick = {
+                             val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+@@ -253,6 +286,16 @@
+             }
+         }
+ 
++        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                Text("Усиление воспроизведения", fontWeight = FontWeight.Medium)
++                Spacer(Modifier.weight(1f))
++                Text("${(playbackBoost * 100).toInt()}%", color = MaterialTheme.colorScheme.primary)
++            }
++            Slider(value = playbackBoost, onValueChange = { playbackBoost = it }, valueRange = 1f..2f, steps = 3)
++            Text("Усиление применяется к следующим запускам воспроизведения. На максимуме возможны искажения.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
++        }
++
+         Row(verticalAlignment = Alignment.CenterVertically) {
+             Text("Мои записи", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+             Spacer(Modifier.weight(1f))
+@@ -275,8 +318,10 @@
+                         isPlaying = playingPath == item.file.absolutePath,
+                         onPlay = {
+                             try {
++                                loudnessEnhancer?.release(); loudnessEnhancer = null
+                                 player?.release()
+                                 if (playingPath == item.file.absolutePath) {
++                                    loudnessEnhancer?.release(); loudnessEnhancer = null
+                                     player = null
+                                     playingPath = null
+                                 } else {
+@@ -284,11 +329,22 @@
+                                     newPlayer.setDataSource(item.file.absolutePath)
+                                     newPlayer.setOnCompletionListener {
+                                         it.release()
++                                        loudnessEnhancer?.release(); loudnessEnhancer = null
+                                         player = null
+                                         playingPath = null
+                                     }
+                                     newPlayer.prepare()
+                                     newPlayer.start()
++                                    if (playbackBoost > 1f) {
++                                        runCatching {
++                                            LoudnessEnhancer(newPlayer.audioSessionId).also { effect ->
++                                                effect.setTargetGain((20.0 * kotlin.math.log10(playbackBoost.toDouble()) * 100.0).toInt())
++                                                effect.enabled = true
++                                                loudnessEnhancer?.release()
++                                                loudnessEnhancer = effect
++                                            }
++                                        }
++                                    }
+                                     player = newPlayer
+                                     playingPath = item.file.absolutePath
+                                 }
+--- a/AudioStudy/app/build.gradle.kts
++++ b/AudioStudy/app/build.gradle.kts
+@@ -12,8 +12,8 @@
+         applicationId = "com.audiostudy.app"
+         minSdk = 29
+         targetSdk = 35
+-        versionCode = 2
+-        versionName = "0.2.0"
++        versionCode = 3
++        versionName = "0.3.0"
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+         vectorDrawables.useSupportLibrary = true
