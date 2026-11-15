@@ -1,6 +1,6 @@
 --- a/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
 +++ b/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
-@@ -5,6 +5,8 @@
+@@ -5,6 +5,7 @@
  import android.media.MediaMetadataRetriever
  import android.media.MediaPlayer
  import android.media.MediaRecorder
@@ -8,7 +8,7 @@
  import android.os.SystemClock
  import androidx.activity.compose.rememberLauncherForActivityResult
  import androidx.activity.result.contract.ActivityResultContracts
-@@ -40,6 +42,8 @@
+@@ -40,6 +41,8 @@
  import androidx.compose.material3.MaterialTheme
  import androidx.compose.material3.OutlinedTextField
  import androidx.compose.material3.Surface
@@ -17,7 +17,7 @@
  import androidx.compose.material3.Text
  import androidx.compose.material3.TextButton
  import androidx.compose.runtime.Composable
-@@ -88,6 +92,10 @@
+@@ -88,6 +91,9 @@
      var renameText by remember { mutableStateOf("") }
      var deleteTarget by remember { mutableStateOf<File?>(null) }
      var message by remember { mutableStateOf<String?>(null) }
@@ -27,14 +27,7 @@
  
      fun refreshRecords() {
          records = recordingsDirectory.listFiles()
-@@ -106,6 +114,7 @@
-             currentFile?.delete()
-         } finally {
-             currentRecorder?.release()
-             recorder = null
-             activeFile = null
-             isRecording = false
-@@ -119,13 +128,26 @@
+@@ -119,7 +125,8 @@
          try {
              val file = File(recordingsDirectory, "Запись_${timestampForFile()}.m4a")
              val newRecorder = MediaRecorder()
@@ -44,13 +37,7 @@
              newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
              newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
              newRecorder.setAudioSamplingRate(44100)
-             newRecorder.setAudioEncodingBitRate(128000)
-             newRecorder.setOutputFile(file.absolutePath)
-             newRecorder.prepare()
-             newRecorder.start()
-             recorder = newRecorder
-             activeFile = file
-@@ -152,6 +174,8 @@
+@@ -152,6 +159,7 @@
      val latestRecorder by rememberUpdatedState(recorder)
      val latestActiveFile by rememberUpdatedState(activeFile)
      val latestPlayer by rememberUpdatedState(player)
@@ -58,7 +45,7 @@
  
      LaunchedEffect(Unit) { refreshRecords() }
      LaunchedEffect(isRecording, isPaused) {
-@@ -170,6 +194,8 @@
+@@ -170,6 +178,7 @@
                  }
              } catch (_: Exception) { }
              latestPlayer?.release()
@@ -66,7 +53,7 @@
          }
      }
  
-@@ -209,6 +235,13 @@
+@@ -209,6 +218,13 @@
                  )
                  Text(formatDuration(elapsedMs), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Medium)
                  if (!isRecording) {
@@ -80,7 +67,7 @@
                      Button(
                          onClick = {
                              val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-@@ -253,6 +286,16 @@
+@@ -253,6 +269,16 @@
              }
          }
  
@@ -97,7 +84,7 @@
          Row(verticalAlignment = Alignment.CenterVertically) {
              Text("Мои записи", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
              Spacer(Modifier.weight(1f))
-@@ -275,8 +318,10 @@
+@@ -275,8 +301,10 @@
                          isPlaying = playingPath == item.file.absolutePath,
                          onPlay = {
                              try {
@@ -108,7 +95,7 @@
                                      player = null
                                      playingPath = null
                                  } else {
-@@ -284,11 +329,22 @@
+@@ -284,11 +312,22 @@
                                      newPlayer.setDataSource(item.file.absolutePath)
                                      newPlayer.setOnCompletionListener {
                                          it.release()
@@ -121,7 +108,7 @@
 +                                    if (playbackBoost > 1f) {
 +                                        runCatching {
 +                                            LoudnessEnhancer(newPlayer.audioSessionId).also { effect ->
-+                                                effect.setTargetGain((20.0 * kotlin.math.log10(playbackBoost.toDouble()) * 100.0).toInt())
++                                                effect.setTargetGain((2000.0 * kotlin.math.log10(playbackBoost.toDouble())).toInt())
 +                                                effect.enabled = true
 +                                                loudnessEnhancer?.release()
 +                                                loudnessEnhancer = effect
