@@ -40,31 +40,7 @@ jobs:
         run: |
           unzip AudioStudy-source-v0.2.0.zip
           git apply --recount --whitespace=nowarn patches/audiostudy-v0.3.0.patch
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-          p = Path("patches/audiostudy-v0.4.0.patch")
-          lines = p.read_text(encoding="utf-8").splitlines(True)
-          out = []
-          i = 0
-          while i < len(lines):
-              m = re.match(r"@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@(.*)", lines[i])
-              if not m:
-                  out.append(lines[i]); i += 1; continue
-              j = i + 1
-              old_count = new_count = 0
-              while j < len(lines) and not lines[j].startswith(("@@ ", "--- a/", "diff --git ")):
-                  line = lines[j]
-                  if line.startswith(" ") or line.startswith("-"): old_count += 1
-                  if line.startswith(" ") or line.startswith("+"): new_count += 1
-                  j += 1
-              old_start, new_start = m.group(1), m.group(3)
-              suffix = m.group(5)
-              out.append(f"@@ -{old_start},{old_count} +{new_start},{new_count} @@{suffix}\\n")
-              out.extend(lines[i+1:j]); i = j
-          p.write_text("".join(out), encoding="utf-8")
-          PY
-          patch --batch --forward --fuzz=5 -p1 < patches/audiostudy-v0.4.0.patch
+          patch --batch --forward -p1 < patches/audiostudy-v0.4.0.patch
 
       - name: Build APK
         working-directory: AudioStudy
