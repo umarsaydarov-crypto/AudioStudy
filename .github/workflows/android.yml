@@ -39,8 +39,8 @@ jobs:
       - name: Extract and patch AudioStudy
         run: |
           unzip AudioStudy-source-v0.2.0.zip
-          patch --batch --forward --fuzz=3 -p1 < patches/audiostudy-v0.3.0.patch
-          patch --batch --forward --fuzz=3 -p1 < patches/audiostudy-v0.4.0.patch
+          patch --batch --forward --recount --fuzz=3 -p1 < patches/audiostudy-v0.3.0.patch
+          patch --batch --forward --recount --fuzz=3 -p1 < patches/audiostudy-v0.4.0.patch
 
       - name: Build APK
         working-directory: AudioStudy
