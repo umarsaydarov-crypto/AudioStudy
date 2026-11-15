@@ -1,0 +1,135 @@
+--- a/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
++++ b/AudioStudy/app/src/main/java/com/audiostudy/app/ui/RecorderScreen.kt
+@@ -19,6 +19,8 @@
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.horizontalScroll
++import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.items
+@@ -38,6 +40,7 @@
+ import androidx.compose.material3.CardDefaults
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
++import androidx.compose.material3.FilterChip
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.OutlinedTextField
+ import androidx.compose.material3.Surface
+@@ -92,6 +95,10 @@
+     var message by remember { mutableStateOf<String?>(null) }
+     var noiseSuppression by remember { mutableStateOf(false) }
++    var recordingMode by remember { mutableStateOf("Лекции") }
++    var recordFilter by remember { mutableStateOf("Все") }
++    var recordSearch by remember { mutableStateOf("") }
++    var newestFirst by remember { mutableStateOf(true) }
+     var playbackBoost by remember { mutableStateOf(1f) }
+     var loudnessEnhancer by remember { mutableStateOf<LoudnessEnhancer?>(null) }
+@@ -129,7 +136,7 @@
+ 
+     fun beginRecording() {
+         try {
+-            val file = File(recordingsDirectory, "Запись_${timestampForFile()}.m4a")
++            val file = File(recordingsDirectory, "${recordingMode}_${timestampForFile()}.m4a")
+             val newRecorder = MediaRecorder()
+             // VOICE_RECOGNITION often routes through the device voice-processing path.
+             newRecorder.setAudioSource(if (noiseSuppression) MediaRecorder.AudioSource.VOICE_RECOGNITION else MediaRecorder.AudioSource.MIC)
+@@ -181,13 +188,30 @@
+     }
+ 
++    val visibleRecords = records.filter { item ->
++        val matchesSearch = item.title.contains(recordSearch, ignoreCase = true)
++        val category = item.title.substringBefore('_', "")
++        val matchesFilter = recordFilter == "Все" || category == recordFilter
++        matchesSearch && matchesFilter
++    }.let { if (newestFirst) it else it.reversed() }
++
+     Column(
+-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp),
+-        verticalArrangement = Arrangement.spacedBy(16.dp)
++        modifier = modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
++        verticalArrangement = Arrangement.spacedBy(12.dp)
+     ) {
+-        Text("Диктофон", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
++        Text("AudioStudy", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
++        Text("Записывай занятия. Возвращайся к важному.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
++        if (!isRecording) {
++            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                listOf("Обычная", "Лекции", "Заметки").forEach { mode ->
++                    FilterChip(selected = recordingMode == mode, onClick = { recordingMode = mode }, label = { Text(mode) })
++                }
++            }
++        } else {
++            Text("Режим: $recordingMode", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
++        }
+@@ -280,13 +304,31 @@
+-        Row(verticalAlignment = Alignment.CenterVertically) {
+-            Text("Мои записи", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+-            Spacer(Modifier.weight(1f))
+-            Text("${records.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+-        }
+-
+-        if (records.isEmpty()) {
++        Text("Библиотека записей", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
++        OutlinedTextField(
++            value = recordSearch,
++            onValueChange = { recordSearch = it },
++            modifier = Modifier.fillMaxWidth(),
++            singleLine = true,
++            placeholder = { Text("Поиск по названию") },
++            shape = RoundedCornerShape(14.dp)
++        )
++        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
++            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
++                listOf("Все", "Обычная", "Лекции", "Заметки").forEach { filter ->
++                    FilterChip(selected = recordFilter == filter, onClick = { recordFilter = filter }, label = { Text(filter) })
++                }
++            }
++            TextButton(onClick = { newestFirst = !newestFirst }) { Text(if (newestFirst) "Новые" else "Старые") }
++        }
++        Row(verticalAlignment = Alignment.CenterVertically) {
++            Text("${visibleRecords.size} записей", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
++            Spacer(Modifier.weight(1f))
++            Text("M4A", color = MaterialTheme.colorScheme.onSurfaceVariant)
++        }
++
++        if (visibleRecords.isEmpty()) {
+@@ -297,7 +339,7 @@
+-                items(records, key = { it.file.absolutePath }) { item ->
++                items(visibleRecords, key = { it.file.absolutePath }) { item ->
+@@ -421,12 +463,17 @@
+-                Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
++                Text(item.title.substringAfter('_', item.title), fontWeight = FontWeight.SemiBold, maxLines = 1)
+                 Text(
+-                    "${formatDuration(item.durationMs)} • ${SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(item.file.lastModified()))}",
++                    "${formatDuration(item.durationMs)} • ${String.format(Locale.getDefault(), "%.1f МБ", item.file.length() / 1048576.0)} • M4A",
++                    style = MaterialTheme.typography.bodySmall,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant
++                )
++                Text(
++                    SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(item.file.lastModified())),
+                     style = MaterialTheme.typography.bodySmall,
+                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                 )
+--- a/AudioStudy/app/src/main/java/com/audiostudy/app/ui/theme/AudioStudyTheme.kt
++++ b/AudioStudy/app/src/main/java/com/audiostudy/app/ui/theme/AudioStudyTheme.kt
+@@ -8,7 +8,7 @@
+-private val Blue = Color(0xFF4779D0)
++private val Blue = Color(0xFFFF4B1F)
+@@ -24,10 +24,10 @@
+-    primary = Color(0xFF9DBBFF),
+-    background = Color(0xFF111318),
+-    surface = Color(0xFF191C23),
+-    surfaceVariant = Color(0xFF242833),
++    primary = Color(0xFFFF6A3D),
++    background = Color(0xFF101012),
++    surface = Color(0xFF202126),
++    surfaceVariant = Color(0xFF292A30),
+--- a/AudioStudy/app/build.gradle.kts
++++ b/AudioStudy/app/build.gradle.kts
+@@ -13,8 +13,8 @@
+-        versionCode = 3
+-        versionName = "0.3.0"
++        versionCode = 4
++        versionName = "0.4.0"
