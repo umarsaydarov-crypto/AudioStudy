@@ -4,7 +4,6 @@
  import android.media.MediaMetadataRetriever
  import android.media.MediaPlayer
  import android.media.MediaRecorder
-+import android.media.audiofx.NoiseSuppressor
 +import android.media.audiofx.LoudnessEnhancer
  import android.os.SystemClock
  import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,7 +23,6 @@
      var message by remember { mutableStateOf<String?>(null) }
 +    var noiseSuppression by remember { mutableStateOf(false) }
 +    var playbackBoost by remember { mutableStateOf(1f) }
-+    var noiseSuppressor by remember { mutableStateOf<NoiseSuppressor?>(null) }
 +    var loudnessEnhancer by remember { mutableStateOf<LoudnessEnhancer?>(null) }
  
      fun refreshRecords() {
@@ -33,7 +31,6 @@
              currentFile?.delete()
          } finally {
              currentRecorder?.release()
-+            noiseSuppressor?.release(); noiseSuppressor = null
              recorder = null
              activeFile = null
              isRecording = false
@@ -50,18 +47,6 @@
              newRecorder.setAudioEncodingBitRate(128000)
              newRecorder.setOutputFile(file.absolutePath)
              newRecorder.prepare()
-+            if (noiseSuppression) {
-+                if (NoiseSuppressor.isAvailable()) {
-+                    runCatching {
-+                        NoiseSuppressor.create(newRecorder.audioSessionId)?.also { effect ->
-+                            effect.enabled = true
-+                            noiseSuppressor = effect
-+                        }
-+                    }
-+                } else {
-+                    message = "На этом устройстве системное шумоподавление недоступно. Запись будет обычной."
-+                }
-+            }
              newRecorder.start()
              recorder = newRecorder
              activeFile = file
@@ -69,7 +54,6 @@
      val latestRecorder by rememberUpdatedState(recorder)
      val latestActiveFile by rememberUpdatedState(activeFile)
      val latestPlayer by rememberUpdatedState(player)
-+    val latestNoiseSuppressor by rememberUpdatedState(noiseSuppressor)
 +    val latestLoudnessEnhancer by rememberUpdatedState(loudnessEnhancer)
  
      LaunchedEffect(Unit) { refreshRecords() }
@@ -78,7 +62,6 @@
                  }
              } catch (_: Exception) { }
              latestPlayer?.release()
-+            latestNoiseSuppressor?.release()
 +            latestLoudnessEnhancer?.release()
          }
      }
